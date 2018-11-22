@@ -144,8 +144,9 @@ func (s *Server) initRouter() {
 	s.registerHandler(router, 1, "/authorize", http.MethodPost, appHandler(s.Authorize))
 	s.registerHandler(router, 1, "/audit", http.MethodGet, appHandler(s.Audit))
 
-	// default 405
+	router.Handle("/health", appHandler(HTTPStatus(200))).Methods(http.MethodGet)
 
+	// default 405
 	router.Handle("/admit/{path:.*}", appHandler(HTTPStatus(405))).Methods(http.MethodHead, http.MethodConnect, http.MethodDelete,
 		http.MethodGet, http.MethodOptions, http.MethodTrace, http.MethodPost, http.MethodPut, http.MethodPatch)
 	router.Handle("/admit", appHandler(HTTPStatus(405))).Methods(http.MethodHead,
@@ -159,6 +160,9 @@ func (s *Server) initRouter() {
 	router.Handle("/audit/{path:.*}", appHandler(HTTPStatus(405))).Methods(http.MethodHead, http.MethodConnect, http.MethodDelete,
 		http.MethodGet, http.MethodOptions, http.MethodTrace, http.MethodPost, http.MethodPut, http.MethodPatch)
 	router.Handle("/audit", appHandler(HTTPStatus(405))).Methods(http.MethodHead,
+		http.MethodConnect, http.MethodDelete, http.MethodOptions, http.MethodTrace, http.MethodPost, http.MethodPut, http.MethodPatch)
+
+	router.Handle("/health", appHandler(HTTPStatus(405))).Methods(http.MethodHead,
 		http.MethodConnect, http.MethodDelete, http.MethodOptions, http.MethodTrace, http.MethodPost, http.MethodPut, http.MethodPatch)
 
 	s.Handler = router
