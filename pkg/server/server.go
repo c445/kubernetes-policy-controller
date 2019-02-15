@@ -408,7 +408,7 @@ func makeOPAAdmissionPostQuery(req *v1beta1.AdmissionRequest) (string, error) {
 	switch resource {
 	case "namespaces":
 		query = types.MakeSingleClusterResourceQuery(resource, name)
-		path = fmt.Sprintf(`data["kubernetes"]["%s"]["%s"]`, resource, name)
+		path = fmt.Sprintf(`data["kubernetes"]["%s"][""]["%s"]`, resource, name)
 	default:
 		var namespace string
 		if namespace = strings.ToLower(strings.TrimSpace(req.Namespace)); len(namespace) == 0 {
@@ -435,7 +435,7 @@ type admissionRequest struct {
 	Operation   string                      `json:"operation" protobuf:"bytes,7,opt,name=operation"`
 	UserInfo    authenticationv1.UserInfo   `json:"userInfo" protobuf:"bytes,8,opt,name=userInfo"`
 	Object      json.RawMessage             `json:"object,omitempty" protobuf:"bytes,9,opt,name=object"`
-	OldObject   json.RawMessage             `json:"oldObject,omitempty" protobuf:"bytes,10,opt,name=oldObject"`
+	// OldObject   json.RawMessage             `json:"oldObject,omitempty" protobuf:"bytes,10,opt,name=oldObject"`
 }
 
 func createAdmissionRequestValueForOPA(req *v1beta1.AdmissionRequest) (string, error) {
@@ -449,7 +449,7 @@ func createAdmissionRequestValueForOPA(req *v1beta1.AdmissionRequest) (string, e
 		Operation:   string(req.Operation),
 		UserInfo:    req.UserInfo,
 		Object:      req.Object.Raw[:],
-		OldObject:   req.OldObject.Raw[:],
+		// OldObject:   req.OldObject.Raw[:],
 	}
 	reqJson, err := json.Marshal(ar)
 	if err != nil {
@@ -619,7 +619,7 @@ func makeOPAAuthorizationPostQuery(sar *authorizationv1beta1.SubjectAccessReview
 		if sar.Spec.NonResourceAttributes != nil {
 			// None is used for now to identify the kind of non-resource requests
 			query = types.MakeSingleNamespaceAuthorizationResourceQuery("None", "", sar.Spec.NonResourceAttributes.Path)
-			path = fmt.Sprintf(`data["kubernetes"]["%s"]["%s"]`, "None", sar.Spec.NonResourceAttributes.Path)
+			path = fmt.Sprintf(`data["kubernetes"]["%s"][""]["%s"]`, "None", sar.Spec.NonResourceAttributes.Path)
 		} else {
 			return "", fmt.Errorf("unknown request type, resource is neither resource nor non-resource request")
 		}
