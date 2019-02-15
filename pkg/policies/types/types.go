@@ -78,11 +78,3 @@ func MakeSingleNamespaceResourceQuery(resource, namespace, name string) string {
 func MakeSingleClusterResourceQuery(resource, name string) string {
 	return fmt.Sprintf(`data.admission.deny[{"id": id, "resource": {"kind": "%s", "namespace": "", "name": "%s"}, "resolution": resolution}]`, resource, name)
 }
-
-// MakeSingleNamespaceResourceQuery makes a single resource query
-// For now I would keep the separation of the OPA packages here, because
-// the values which are given later via the value just don't have the same
-// format. But at least the rules have a similar structure now.
-func MakeSingleNamespaceAuthorizationResourceQuery(resource, namespace, name string) string {
-	return fmt.Sprintf(`data.authorization.deny[{"id": id, "resource": {"kind": "%s", "namespace": "%s", "name": "%s"}, "resolution": resolution}]`, resource, namespace, name)
-}

@@ -590,58 +590,44 @@ func parseOPAResult(result []map[string]interface{}) (allowed bool, reasonStr st
 
 func makeOPAAuthorizationPostQuery(sar *authorizationv1beta1.SubjectAccessReview) (string, error) {
 
-	var query string
-	var resource, name string
+	ar := authorizationRequest{
+		UiUser:  sar.Spec.User,
+		UiGroup: sar.Spec.Groups,
+	}
+	if sar.Spec.ResourceAttributes == nil && sar.Spec.NonResourceAttributes == nil {
+		return "", fmt.Errorf("unknown request type, resource is neither resource nor non-resource request")
+	}
 	// resource requests
 	if sar.Spec.ResourceAttributes != nil {
-		if resource = strings.ToLower(strings.TrimSpace(sar.Spec.ResourceAttributes.Resource)); len(resource) == 0 {
-			return resource, fmt.Errorf("resource is empty")
+		ar.Resource = strings.ToLower(strings.TrimSpace(sar.Spec.ResourceAttributes.Resource))
+		if len(ar.Resource) == 0 {
+			return ar.Resource, fmt.Errorf("resource is empty")
 		}
-		if name = strings.ToLower(strings.TrimSpace(sar.Spec.ResourceAttributes.Name)); len(name) == 0 {
+
+		ar.Name = strings.ToLower(strings.TrimSpace(sar.Spec.ResourceAttributes.Name))
+		if len(ar.Name) == 0 {
 			// assign a random name for validation
-			name = randStringBytesMaskImprSrc(10)
+			ar.Name = randStringBytesMaskImprSrc(10)
 		}
-
-		// We could determine single namespace or cluster query based on if the namespace is set in the SubjectAccessReview, e.g.:
-		// 	List across namespaces +> the namespace field will be empty, e.g.: kubectl get pods --all-namespaces
-		//  List pods in a single namespace +> the namespace field will be set, e.g.: kubectl get pods -n my-namespace
-		//  Get a specific pod in a namespace +> the namespace field will be set, e.g.: kubectl get pod/mypod -n my-namespace`
-		//  Get a cluster-scoped resource +> namespace will be empty, e.g.: kubectl get clusterroles
-
-		// The problem is because we don't want to write separate rules for, e.g. the pod case (1 for all-namespaces & 1 for
-		// -n my-namespace) we just always send a namespace query, if we have no namespace from the request, we just set it empty.
-		// Namespaced Resource
-		query = types.MakeSingleNamespaceAuthorizationResourceQuery(resource, sar.Spec.ResourceAttributes.Namespace, name)
-	} else {
-		// non-resource requests
-		if sar.Spec.NonResourceAttributes != nil {
-			// None is used for now to identify the kind of non-resource requests
-			resource = "None"
-			name = sar.Spec.NonResourceAttributes.Path
-			query = types.MakeSingleNamespaceAuthorizationResourceQuery(resource, "", name)
-		} else {
-			return "", fmt.Errorf("unknown request type, resource is neither resource nor non-resource request")
-		}
-	}
-
-	ar := authorizationRequest{
-		UiUser:   sar.Spec.User,
-		UiGroup:  sar.Spec.Groups,
-		Resource: resource,
-		Name:     name,
-	}
-	if sar.Spec.ResourceAttributes != nil {
 		ar.Namespace = sar.Spec.ResourceAttributes.Namespace
 		ar.Group = sar.Spec.ResourceAttributes.Group
 		ar.Subresource = sar.Spec.ResourceAttributes.Subresource
 		ar.Verb = sar.Spec.ResourceAttributes.Verb
+		ar.Version = sar.Spec.ResourceAttributes.Version
+	} else {
+		// non-resource requests
+		if sar.Spec.NonResourceAttributes != nil {
+			// None is used for now to identify the kind of non-resource requests
+			ar.Resource = "None"
+			ar.Name = sar.Spec.NonResourceAttributes.Path
+		}
 	}
 
 	arJson, err := json.Marshal(ar)
 	if err != nil {
 		return "", fmt.Errorf("error marshalling SubjectAccessReview: %v", err)
 	}
-	return makeOPAWithAsQuery(query, "input", string(arJson)), nil
+	return fmt.Sprintf(`data.authorization.deny[{"id": id, "resolution": resolution}] with input as %s`, string(arJson)), nil
 }
 
 type authorizationRequest struct {
@@ -650,7 +636,8 @@ type authorizationRequest struct {
 	Name        string   `json:"name"`
 	Namespace   string   `json:"namespace"`
 	Verb        string   `json:"verb"`
-	Group       string   `json:"version"`
+	Version     string   `json:"version"`
+	Group       string   `json:"group"`
 	UiUser      string   `json:"ui_user"`
 	UiGroup     []string `json:"ui_group"`
 }
