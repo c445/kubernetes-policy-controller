@@ -590,11 +590,10 @@ func parseOPAResult(result []map[string]interface{}) (allowed bool, reasonStr st
 
 func makeOPAAuthorizationPostQuery(sar *authorizationv1beta1.SubjectAccessReview) (string, error) {
 
-	var query, path string
+	var query string
+	var resource, name string
 	// resource requests
 	if sar.Spec.ResourceAttributes != nil {
-
-		var resource, name string
 		if resource = strings.ToLower(strings.TrimSpace(sar.Spec.ResourceAttributes.Resource)); len(resource) == 0 {
 			return resource, fmt.Errorf("resource is empty")
 		}
@@ -613,23 +612,47 @@ func makeOPAAuthorizationPostQuery(sar *authorizationv1beta1.SubjectAccessReview
 		// -n my-namespace) we just always send a namespace query, if we have no namespace from the request, we just set it empty.
 		// Namespaced Resource
 		query = types.MakeSingleNamespaceAuthorizationResourceQuery(resource, sar.Spec.ResourceAttributes.Namespace, name)
-		path = fmt.Sprintf(`data["kubernetes"]["%s"]["%s"]["%s"]`, resource, sar.Spec.ResourceAttributes.Namespace, name)
 	} else {
 		// non-resource requests
 		if sar.Spec.NonResourceAttributes != nil {
 			// None is used for now to identify the kind of non-resource requests
-			query = types.MakeSingleNamespaceAuthorizationResourceQuery("None", "", sar.Spec.NonResourceAttributes.Path)
-			path = fmt.Sprintf(`data["kubernetes"]["%s"][""]["%s"]`, "None", sar.Spec.NonResourceAttributes.Path)
+			resource = "None"
+			name = sar.Spec.NonResourceAttributes.Path
+			query = types.MakeSingleNamespaceAuthorizationResourceQuery(resource, "", name)
 		} else {
 			return "", fmt.Errorf("unknown request type, resource is neither resource nor non-resource request")
 		}
 	}
 
-	sarJson, err := json.Marshal(sar)
+	ar := authorizationRequest{
+		UiUser:   sar.Spec.User,
+		UiGroup:  sar.Spec.Groups,
+		Resource: resource,
+		Name:     name,
+	}
+	if sar.Spec.ResourceAttributes != nil {
+		ar.Namespace = sar.Spec.ResourceAttributes.Namespace
+		ar.Group = sar.Spec.ResourceAttributes.Group
+		ar.Subresource = sar.Spec.ResourceAttributes.Subresource
+		ar.Verb = sar.Spec.ResourceAttributes.Verb
+	}
+
+	arJson, err := json.Marshal(ar)
 	if err != nil {
 		return "", fmt.Errorf("error marshalling SubjectAccessReview: %v", err)
 	}
-	return makeOPAWithAsQuery(query, path, string(sarJson)), nil
+	return makeOPAWithAsQuery(query, "input", string(arJson)), nil
+}
+
+type authorizationRequest struct {
+	Resource    string   `json:"resource"`
+	Subresource string   `json:"subresource"`
+	Name        string   `json:"name"`
+	Namespace   string   `json:"namespace"`
+	Verb        string   `json:"verb"`
+	Group       string   `json:"version"`
+	UiUser      string   `json:"ui_user"`
+	UiGroup     []string `json:"ui_group"`
 }
 
 var src = rand.NewSource(time.Now().UnixNano())
