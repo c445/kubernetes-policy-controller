@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -25,6 +26,7 @@ import (
 	authenticationv1 "k8s.io/api/authentication/v1"
 	authorizationv1beta1 "k8s.io/api/authorization/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 )
@@ -438,6 +440,21 @@ type admissionRequest struct {
 	// OldObject   json.RawMessage             `json:"oldObject,omitempty" protobuf:"bytes,10,opt,name=oldObject"`
 }
 
+func removeCRDValidation(b []byte) ([]byte, error) {
+	obj := unstructured.Unstructured{}
+	// decode bytes to unstructured
+	if _, _, err := unstructured.UnstructuredJSONScheme.Decode(b, nil, &obj); err != nil {
+		return nil, fmt.Errorf("error unmarshaling customresourcedefinition data: %v", err)
+	}
+	// remove validation part
+	unstructured.RemoveNestedField(obj.Object, "spec", "validation")
+	var buf bytes.Buffer
+
+	// encode back to []byte and return
+	unstructured.UnstructuredJSONScheme.Encode(&obj, &buf)
+	return buf.Bytes(), nil
+}
+
 func createAdmissionRequestValueForOPA(req *v1beta1.AdmissionRequest) (string, error) {
 	ar := admissionRequest{
 		UID:         string(req.UID),
@@ -451,6 +468,17 @@ func createAdmissionRequestValueForOPA(req *v1beta1.AdmissionRequest) (string, e
 		Object:      req.Object.Raw[:],
 		// OldObject:   req.OldObject.Raw[:],
 	}
+	// There are heavy crds because of the spec.validation field.
+	// Because of that we don't want to send this data to opa.
+	// Otherwise the resources cannot get applied
+	if req.Resource.Resource == "customresourcedefinitions" {
+		var err error
+		ar.Object, err = removeCRDValidation(ar.Object)
+		if err != nil {
+			return "", fmt.Errorf("error removing spec.validation from customrecourcedefinition: %v", err)
+		}
+	}
+
 	reqJson, err := json.Marshal(ar)
 	if err != nil {
 		return "", fmt.Errorf("error marshalling AdmissionRequest: %v", err)

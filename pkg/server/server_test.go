@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -19,6 +18,7 @@ import (
 	"github.com/open-policy-agent/opa/util"
 	"k8s.io/api/admission/v1beta1"
 	authorizationv1beta1 "k8s.io/api/authorization/v1beta1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestAuditWithValidateViolation(t *testing.T) {
@@ -602,4 +602,109 @@ type tr struct {
 	body   string
 	code   int
 	resp   string
+}
+
+func Test_removeCRDValidation(t *testing.T) {
+	type args struct {
+		b []byte
+	}
+	tests := []struct {
+		name    string
+		data    string
+		want    string
+		wantErr bool
+	}{
+		{
+			"no validation",
+			`{
+				"apiVersion": "apiextensions.k8s.io/v1beta1",
+				"kind": "CustomResourceDefinition",
+				"metadata": {
+					"name": "dhcclouds.app.daimler.com"
+				},
+				"spec": {
+					"group": "app.daimler.com",
+					"names": {
+						"kind": "DHCCloud",
+						"plural": "dhcclouds",
+						"shortNames": [
+							"cl"
+						],
+						"singular": "dhccloud"
+					},
+					"scope": "Namespaced",
+					"version": "v1"
+				}
+			}`,
+			`{"apiVersion":"apiextensions.k8s.io/v1beta1","kind":"CustomResourceDefinition","metadata":{"name":"dhcclouds.app.daimler.com"},"spec":{"group":"app.daimler.com","names":{"kind":"DHCCloud","plural":"dhcclouds","shortNames":["cl"],"singular":"dhccloud"},"scope":"Namespaced","version":"v1"}}` + "\n",
+			false,
+		},
+		{
+			"existing validation",
+			`{
+				"apiVersion": "apiextensions.k8s.io/v1beta1",
+				"kind": "CustomResourceDefinition",
+				"metadata": {
+					"name": "dhcclouds.app.daimler.com"
+				},
+				"spec": {
+					"group": "app.daimler.com",
+					"names": {
+						"kind": "DHCCloud",
+						"plural": "dhcclouds",
+						"shortNames": [
+							"cl"
+						],
+						"singular": "dhccloud"
+					},
+					"scope": "Namespaced",
+					"validation": {
+            "openAPIV3Schema": {
+              "properties": {
+                "spec": {
+                  "properties": {
+                    "config": {
+											"type": "object"
+										},
+										"partitions": {
+											"minimum": 1,
+											"type": "integer"
+										},
+										"replicas": {
+											"maximum": 32767,
+											"minimum": 1,
+											"type": "integer"
+										},
+										"topicName": {
+											"type": "string"
+										}
+									},
+									"required": [
+											"partitions",
+											"replicas"
+									],
+									"type": "object"
+								}
+							}
+            }
+        	},
+					"version": "v1"
+				}
+			}`,
+			`{"apiVersion":"apiextensions.k8s.io/v1beta1","kind":"CustomResourceDefinition","metadata":{"name":"dhcclouds.app.daimler.com"},"spec":{"group":"app.daimler.com","names":{"kind":"DHCCloud","plural":"dhcclouds","shortNames":["cl"],"singular":"dhccloud"},"scope":"Namespaced","version":"v1"}}` + "\n",
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := removeCRDValidation([]byte(tt.data))
+			if (err != nil) != tt.wantErr {
+				t.Errorf("removeCRDValidation() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if string(got) != tt.want {
+				t.Errorf("removeCRDValidation() = >%v<, want >%v<", string(got), tt.want)
+			}
+		})
+	}
 }
