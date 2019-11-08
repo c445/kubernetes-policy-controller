@@ -255,7 +255,12 @@ func (s *Server) Admit(logger *log.Entry, w http.ResponseWriter, r *http.Request
 	} else {
 		admissionResponse = s.admissionPolicyCheck(logger, &ar)
 	}
-	admissionReview := admissionv1.AdmissionReview{}
+	admissionReview := admissionv1.AdmissionReview{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "admission.k8s.io/v1",
+			Kind: "AdmissionReview",
+		},
+	}
 	if admissionResponse != nil {
 		admissionReview.Response = admissionResponse
 		if ar.Request != nil {
@@ -267,7 +272,7 @@ func (s *Server) Admit(logger *log.Entry, w http.ResponseWriter, r *http.Request
 		logger.Errorf("Can't encode response: %v", err)
 		http.Error(w, fmt.Sprintf("could not encode response: %v", err), http.StatusInternalServerError)
 	}
-	logger.Debugf("Write response %v(allowed: %v)...", admissionReview.Response.UID, admissionReview.Response.Allowed)
+	logger.Debugf("Write response %v(allowed: %v): %s", admissionReview.Response.UID, admissionReview.Response.Allowed, string(resp))
 	if _, err := w.Write(resp); err != nil {
 		logger.Errorf("Can't write response: %v", err)
 		http.Error(w, fmt.Sprintf("could not write response: %v", err), http.StatusInternalServerError)
