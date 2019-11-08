@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"k8s.io/api/admission/v1beta1"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -16,7 +17,7 @@ import (
 	"github.com/Azure/kubernetes-policy-controller/pkg/policies/types"
 	opatypes "github.com/open-policy-agent/opa/server/types"
 	"github.com/open-policy-agent/opa/util"
-	"k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	authorizationv1beta1 "k8s.io/api/authorization/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -481,7 +482,7 @@ func getPatchBytes(patches []types.PatchOperation) ([]byte, error) {
 }
 
 func makeAdmissionRequest(kind, namespace, name string) string {
-	req := &v1beta1.AdmissionRequest{UID: "anyUID", Name: name, Namespace: namespace}
+	req := &admissionv1.AdmissionRequest{UID: "anyUID", Name: name, Namespace: namespace}
 	req.Kind.Kind = kind
 	req.Resource.Resource = fmt.Sprintf("%ss", kind)
 	objectStr := fmt.Sprintf(`{"key": %v}`, rand.Intn(10))

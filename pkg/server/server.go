@@ -22,7 +22,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/open-policy-agent/opa/util"
 	log "github.com/sirupsen/logrus"
-	"k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	authorizationv1beta1 "k8s.io/api/authorization/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -242,12 +242,12 @@ func (s *Server) Admit(logger *log.Entry, w http.ResponseWriter, r *http.Request
 		http.Error(w, "invalid Content-Type, expect `application/json`", http.StatusUnsupportedMediaType)
 		return
 	}
-	var admissionResponse *v1beta1.AdmissionResponse
-	ar := v1beta1.AdmissionReview{}
+	var admissionResponse *admissionv1.AdmissionResponse
+	ar := admissionv1.AdmissionReview{}
 	deserializer := codecs.UniversalDeserializer()
 	if _, _, err := deserializer.Decode(body, nil, &ar); err != nil {
 		logger.Errorf("Can't decode body: %v", err)
-		admissionResponse = &v1beta1.AdmissionResponse{
+		admissionResponse = &admissionv1.AdmissionResponse{
 			Result: &metav1.Status{
 				Message: err.Error(),
 			},
@@ -255,7 +255,7 @@ func (s *Server) Admit(logger *log.Entry, w http.ResponseWriter, r *http.Request
 	} else {
 		admissionResponse = s.admissionPolicyCheck(logger, &ar)
 	}
-	admissionReview := v1beta1.AdmissionReview{}
+	admissionReview := admissionv1.AdmissionReview{}
 	if admissionResponse != nil {
 		admissionReview.Response = admissionResponse
 		if ar.Request != nil {
@@ -275,8 +275,8 @@ func (s *Server) Admit(logger *log.Entry, w http.ResponseWriter, r *http.Request
 }
 
 // main admission process
-func (s *Server) admissionPolicyCheck(logger *log.Entry, ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
-	response := &v1beta1.AdmissionResponse{
+func (s *Server) admissionPolicyCheck(logger *log.Entry, ar *admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
+	response := &admissionv1.AdmissionResponse{
 		Allowed: true,
 	}
 	if ar.Request == nil {
@@ -294,7 +294,7 @@ func (s *Server) admissionPolicyCheck(logger *log.Entry, ar *v1beta1.AdmissionRe
 	}
 	if patchBytes == nil || len(patchBytes) == 0 {
 		logger.Debugf("AdmissionResponse: No mutation due to policy check, Resource=%v, Namespace=%v Name=%v UID=%v Operation=%v UserInfo=%v", req.Resource.Resource, req.Namespace, req.Name, req.UID, req.Operation, req.UserInfo)
-		return &v1beta1.AdmissionResponse{
+		return &admissionv1.AdmissionResponse{
 			Allowed: allowed,
 			Result: &metav1.Status{
 				Message: reason,
@@ -302,20 +302,20 @@ func (s *Server) admissionPolicyCheck(logger *log.Entry, ar *v1beta1.AdmissionRe
 		}
 	}
 	logger.Debugf("AdmissionResponse: Mutate Resource=%v, Namespace=%v Name=%v UID=%v Operation=%v UserInfo=%v", req.Resource.Resource, req.Namespace, req.Name, req.UID, req.Operation, req.UserInfo)
-	return &v1beta1.AdmissionResponse{
+	return &admissionv1.AdmissionResponse{
 		Allowed: true,
 		Patch:   patchBytes,
 		Result: &metav1.Status{
 			Message: reason,
 		},
-		PatchType: func() *v1beta1.PatchType {
-			pt := v1beta1.PatchTypeJSONPatch
+		PatchType: func() *admissionv1.PatchType {
+			pt := admissionv1.PatchTypeJSONPatch
 			return &pt
 		}(),
 	}
 }
 
-func (s *Server) doAdmissionPolicyCheck(logger *log.Entry, req *v1beta1.AdmissionRequest) (allowed bool, reason string, patchBytes []byte, err error) {
+func (s *Server) doAdmissionPolicyCheck(logger *log.Entry, req *admissionv1.AdmissionRequest) (allowed bool, reason string, patchBytes []byte, err error) {
 	var mutationQuery string
 	if mutationQuery, err = makeOPAAdmissionPostQuery(req); err != nil {
 		return false, "", nil, err
@@ -395,7 +395,7 @@ func makeOPAWithAsQuery(query, path, value string) string {
 	return fmt.Sprintf(`%s with %s as %s`, query, path, value)
 }
 
-func makeOPAAdmissionPostQuery(req *v1beta1.AdmissionRequest) (string, error) {
+func makeOPAAdmissionPostQuery(req *admissionv1.AdmissionRequest) (string, error) {
 	var resource, name string
 	if resource = strings.ToLower(strings.TrimSpace(req.Resource.Resource)); len(resource) == 0 {
 		return resource, fmt.Errorf("resource is empty")
@@ -455,7 +455,7 @@ func removeCRDValidation(b []byte) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func createAdmissionRequestValueForOPA(req *v1beta1.AdmissionRequest) (string, error) {
+func createAdmissionRequestValueForOPA(req *admissionv1.AdmissionRequest) (string, error) {
 	ar := admissionRequest{
 		UID:         string(req.UID),
 		Kind:        req.Kind,
