@@ -258,7 +258,7 @@ func (s *Server) Admit(logger *log.Entry, w http.ResponseWriter, r *http.Request
 	admissionReview := admissionv1.AdmissionReview{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "admission.k8s.io/v1",
-			Kind: "AdmissionReview",
+			Kind:       "AdmissionReview",
 		},
 	}
 	if admissionResponse != nil {
@@ -445,14 +445,14 @@ type admissionRequest struct {
 	// OldObject   json.RawMessage             `json:"oldObject,omitempty" protobuf:"bytes,10,opt,name=oldObject"`
 }
 
-func removeCRDValidation(b []byte) ([]byte, error) {
+func removeNestedSpec(b []byte) ([]byte, error) {
 	obj := unstructured.Unstructured{}
 	// decode bytes to unstructured
 	if _, _, err := unstructured.UnstructuredJSONScheme.Decode(b, nil, &obj); err != nil {
-		return nil, fmt.Errorf("error unmarshaling customresourcedefinition data: %v", err)
+		return nil, fmt.Errorf("error unmarshaling data: %v", err)
 	}
 	// remove validation part
-	unstructured.RemoveNestedField(obj.Object, "spec", "validation")
+	unstructured.RemoveNestedField(obj.Object, "spec")
 	var buf bytes.Buffer
 
 	// encode back to []byte and return
@@ -478,9 +478,9 @@ func createAdmissionRequestValueForOPA(req *admissionv1.AdmissionRequest) (strin
 	// Otherwise the resources cannot get applied
 	if req.Resource.Resource == "customresourcedefinitions" {
 		var err error
-		ar.Object, err = removeCRDValidation(ar.Object)
+		ar.Object, err = removeNestedSpec(ar.Object)
 		if err != nil {
-			return "", fmt.Errorf("error removing spec.validation from customrecourcedefinition: %v", err)
+			return "", fmt.Errorf("error removing spec from customrecourcedefinition: %v", err)
 		}
 	}
 
