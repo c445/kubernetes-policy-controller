@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -449,7 +450,7 @@ func removeNestedSpec(b []byte) ([]byte, error) {
 	obj := unstructured.Unstructured{}
 	// decode bytes to unstructured
 	if _, _, err := unstructured.UnstructuredJSONScheme.Decode(b, nil, &obj); err != nil {
-		return nil, fmt.Errorf("error unmarshaling data: %v", err)
+		return nil, fmt.Errorf("error unmarshaling data of length %d base64 %s: %v", len(b), base64.StdEncoding.EncodeToString(b), err)
 	}
 	// remove validation part
 	unstructured.RemoveNestedField(obj.Object, "spec")
@@ -478,9 +479,11 @@ func createAdmissionRequestValueForOPA(req *admissionv1.AdmissionRequest) (strin
 	// Otherwise the resources cannot get applied
 	if req.Resource.Resource == "customresourcedefinitions" {
 		var err error
-		ar.Object, err = removeNestedSpec(ar.Object)
-		if err != nil {
-			return "", fmt.Errorf("error removing spec from customrecourcedefinition: %v", err)
+		if ar.Object != nil {
+			ar.Object, err = removeNestedSpec(ar.Object)
+			if err != nil {
+				return "", fmt.Errorf("error removing spec from customrecourcedefinition: %v", req, err)
+			}
 		}
 	}
 
