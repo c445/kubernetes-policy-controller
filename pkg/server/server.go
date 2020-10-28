@@ -629,6 +629,7 @@ func makeOPAAuthorizationPostQuery(sar *authorizationv1beta1.SubjectAccessReview
 	ar := authorizationRequest{
 		UiUser:  sar.Spec.User,
 		UiGroup: sar.Spec.Groups,
+		UiExtra: sar.Spec.Extra,
 	}
 	if sar.Spec.ResourceAttributes == nil && sar.Spec.NonResourceAttributes == nil {
 		return "", fmt.Errorf("unknown request type, resource is neither resource nor non-resource request")
@@ -667,15 +668,16 @@ func makeOPAAuthorizationPostQuery(sar *authorizationv1beta1.SubjectAccessReview
 }
 
 type authorizationRequest struct {
-	Resource    string   `json:"resource"`
-	Subresource string   `json:"subresource"`
-	Name        string   `json:"name"`
-	Namespace   string   `json:"namespace"`
-	Verb        string   `json:"verb"`
-	Version     string   `json:"version"`
-	Group       string   `json:"group"`
-	UiUser      string   `json:"ui_user"`
-	UiGroup     []string `json:"ui_group"`
+	Resource    string                                     `json:"resource"`
+	Subresource string                                     `json:"subresource"`
+	Name        string                                     `json:"name"`
+	Namespace   string                                     `json:"namespace"`
+	Verb        string                                     `json:"verb"`
+	Version     string                                     `json:"version"`
+	Group       string                                     `json:"group"`
+	UiUser      string                                     `json:"ui_user"`
+	UiGroup     []string                                   `json:"ui_group"`
+	UiExtra     map[string]authorizationv1beta1.ExtraValue `json:"ui_extra"`
 }
 
 var src = rand.NewSource(time.Now().UnixNano())
